@@ -1,0 +1,149 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="spatial_platform">
+
+  <link name="world"/>
+
+  <link name="dummy_z">
+    <inertial><mass value="0.01"/><inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/></inertial>
+  </link>
+  <link name="dummy_roll">
+    <inertial><mass value="0.01"/><inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/></inertial>
+  </link>
+
+  <joint name="translate_z" type="prismatic">
+    <parent link="world"/>
+    <child link="dummy_z"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.0" upper="5.0" effort="100000" velocity="100"/>
+  </joint>
+
+  <joint name="rotate_roll" type="continuous">
+    <parent link="dummy_z"/>
+    <child link="dummy_roll"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+  </joint>
+
+  <joint name="rotate_pitch" type="continuous">
+    <parent link="dummy_roll"/>
+    <child link="platform"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="platform">
+    <visual>
+      <geometry><box size="1.0 0.8 0.05"/></geometry>
+      <material name="cyan"><color rgba="0.0 1.0 1.0 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="1.0 0.8 0.05"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="12.0"/>
+      <inertia ixx="2.5" ixy="0" ixz="0" iyy="3.2" iyz="0" izz="5.0"/>
+    </inertial>
+  </link>
+  <gazebo reference="platform"><material>Gazebo/Turquoise</material></gazebo>
+
+  <link name="base_link">
+    <visual>
+      <geometry><box size="1.5 1.5 0.05"/></geometry>
+      <material name="gray"><color rgba="0.3 0.3 0.3 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="1.5 1.5 0.05"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="100.0"/>
+      <inertia ixx="1.0" ixy="0" ixz="0" iyy="1.0" iyz="0" izz="1.0"/>
+    </inertial>
+  </link>
+  <joint name="fixed_base" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.025" rpy="0 0 0"/>
+  </joint>
+
+  <xacro:macro name="suspension" params="prefix x y">
+    
+    <link name="${prefix}_cylinder">
+      <visual>
+        <origin xyz="0 0 0.15"/>
+        <geometry><cylinder radius="0.04" length="0.30"/></geometry>
+        <material name="black"><color rgba="0.1 0.1 0.1 1.0"/></material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0.15"/>
+        <geometry><cylinder radius="0.04" length="0.30"/></geometry>
+      </collision>
+      <inertial><mass value="1.0"/><inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.005"/></inertial>
+    </link>
+    <gazebo reference="${prefix}_cylinder"><material>Gazebo/FlatBlack</material></gazebo>
+
+    <joint name="${prefix}_base_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${prefix}_cylinder"/>
+      <origin xyz="${x} ${y} 0.025" rpy="0 0 0"/>
+    </joint>
+
+    <link name="${prefix}_piston">
+      <visual>
+        <origin xyz="0 0 0.15"/>
+        <geometry><cylinder radius="0.025" length="0.35"/></geometry>
+        <material name="silver"><color rgba="0.8 0.8 0.8 1.0"/></material>
+      </visual>
+      <inertial><mass value="0.1"/><inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/></inertial>
+    </link>
+    <gazebo reference="${prefix}_piston"><material>Gazebo/Silver</material></gazebo>
+
+    <joint name="${prefix}_prismatic" type="prismatic">
+      <parent link="${prefix}_cylinder"/>
+      <child link="${prefix}_piston"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="-0.1" upper="0.8" effort="200" velocity="10"/>
+      <dynamics damping="5.0" friction="0.1"/>
+    </joint>
+    
+    <gazebo reference="${prefix}_prismatic">
+      <implicitSpringDamper>true</implicitSpringDamper>
+      <springStiffness>10.0</springStiffness>
+      <springReference>0.45</springReference>
+    </gazebo>
+    
+  </xacro:macro>
+
+  <xacro:suspension prefix="fl" x="0.5" y="0.4"/>
+  <xacro:suspension prefix="fr" x="0.5" y="-0.4"/>
+  <xacro:suspension prefix="rl" x="-0.5" y="0.4"/>
+  <xacro:suspension prefix="rr" x="-0.5" y="-0.4"/>
+
+  <gazebo>
+    <plugin name="gazebo_ros_p3d" filename="libgazebo_ros_p3d.so">
+      <ros><namespace>/platform</namespace><remapping>odom:=odom</remapping></ros>
+      <body_name>platform</body_name>
+      <frame_name>world</frame_name>
+      <update_rate>100.0</update_rate>
+    </plugin>
+  </gazebo>
+
+  <gazebo reference="platform">
+    <sensor name="platform_imu" type="imu">
+      <always_on>true</always_on>
+      <update_rate>100.0</update_rate>
+      <plugin name="gazebo_ros_imu_sensor" filename="libgazebo_ros_imu_sensor.so">
+        <ros><namespace>/platform</namespace><remapping>~/out:=imu</remapping></ros>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <gazebo>
+    <plugin name="gazebo_ros_force" filename="libgazebo_ros_force.so">
+      <ros><remapping>gazebo_ros_force:=/platform/cmd_wrench</remapping></ros>
+      <link_name>platform</link_name>
+      <force_frame>world</force_frame>
+    </plugin>
+  </gazebo>
+
+</robot>
